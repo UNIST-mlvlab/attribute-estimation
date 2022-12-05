@@ -1,0 +1,9 @@
+datasets:
+  dataset_name: RAP
+
+training:
+  batch_size: 32
+  num_workers: 4
+
+models:
+  model_name: MLP
