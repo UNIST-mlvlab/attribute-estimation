@@ -1,5 +1,6 @@
 datasets:
-  dataset_name: RAP
+  data_root: /home/ayp/datasets/PAR_datasets/RAPv1
+  dataset_name: RAPv1
 
 training:
   batch_size: 32
