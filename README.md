@@ -1,6 +1,19 @@
 # attribute-estimation
 
-
+```
+.
+├── dataset
+├── environment.yml
+├── main.py
+├── README.md
+├── settings.yaml
+└── src
+    ├── models
+    └── utils
+        ├── datasets.py
+        ├── settings.py
+        └── toolkits.py
+```
 
 # Requirements
 
