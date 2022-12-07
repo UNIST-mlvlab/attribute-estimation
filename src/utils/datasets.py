@@ -81,7 +81,12 @@ def get_dataset(settings):
     else:
         raise ValueError('Dataset not supported')
 
-    return training_dataloader, test_dataloader
+    dataset_info = {
+        'num_attr': num_attr,
+        'attribute_name': attribute_name
+    }
+
+    return training_dataloader, test_dataloader, dataset_info
 
 
 def get_rapv1(settings, partition_index=0):
