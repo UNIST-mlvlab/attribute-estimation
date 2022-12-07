@@ -17,6 +17,7 @@ class PARDataset(Dataset):
         image_root, 
         image_list,
         label,
+        attribute_name=None,
         transform=None):
         super().__init__()
 
@@ -25,6 +26,7 @@ class PARDataset(Dataset):
         self.label = label
 
         self.transform = transform
+        self.attribute_name = attribute_name
 
     def __len__(self):
         return len(self.label)
@@ -46,13 +48,17 @@ class PARDataset(Dataset):
 
         return images, label
 
+    def get_attribute_name(self):
+        return self.attribute_name
+
 
 def get_dataset(settings):
     dataset_name = settings['datasets']['dataset_name']
 
     if dataset_name == 'RAPv1':
-        num_attr = 92
         training_data, test_data = get_rapv1(settings)
+        num_attr = 92
+        attribute_name = test_data.get_attribute_name()
 
         # define the data loaders
         training_dataloader = torch.utils.data.DataLoader(training_data, 
