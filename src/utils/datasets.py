@@ -81,19 +81,21 @@ class ConcatedFeatures(Dataset):
 
 def get_dataset(settings):
     dataset_name = settings['datasets']['dataset_name']
+    batch_size = settings['training']['batch_size']
+    num_workers = settings['training']['num_workers']
 
     if dataset_name == 'RAPv1':
         training_data, test_data = get_rapv1(settings)
-        num_attr = 92
+        num_attr = 51
         attribute_name = test_data.get_attribute_name()
 
         # define the data loaders
         training_dataloader = torch.utils.data.DataLoader(training_data, 
-            batch_size=settings['training']['batch_size'], 
-            shuffle=True, num_workers=settings['training']['num_workers'])
+            batch_size=batch_size, 
+            shuffle=True, num_workers=num_workers)
         test_dataloader = torch.utils.data.DataLoader(test_data,
-            batch_size=settings['training']['batch_size'], 
-            shuffle=False, num_workers=settings['training']['num_workers'])
+            batch_size=batch_size, 
+            shuffle=False, num_workers=num_workers)
 
     elif dataset_name == 'RAPv2':
         raise ValueError('Not implemented yet')
@@ -125,11 +127,15 @@ def get_rapv1(settings, partition_index=0):
     annotation_dir = os.path.join(data_root, 'RAP_annotation')
     img_dir = os.path.join(data_root, 'RAP_dataset')
 
+    group_order = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+               26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 1, 2, 3, 0, 4, 5, 6, 7, 8, 43, 44,
+               45, 46, 47, 48, 49, 50]
+
     annotation = loadmat(os.path.join(annotation_dir, 'RAP_annotation.mat'))
     annotation = annotation['RAP_annotation'][0,0] # np.void
     # partition, label, attribute_chinese, attribute_eng, position, imgage_name, attribute_exp
     partition = annotation[0]
-    label = annotation[1]           # (41585, 92)
+    label = annotation[1][:np.arange(51)]           # (41585, 92)
     attribute_name = annotation[3]  # (92, 1)
     img_file = annotation[5]        # (41585, 1)
 
