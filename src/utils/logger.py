@@ -1,5 +1,7 @@
 import os
 
+import numpy as np
+
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
@@ -54,3 +56,26 @@ def tb_visualizer_pedes(tb_writer, lr, epoch, train_loss, valid_loss, train_resu
                                         'Prec': valid_result.instance_prec,
                                         'Rec': valid_result.instance_recall,
                                         'F1': valid_result.instance_f1}, epoch)
+
+
+def result_printting(train_loss, train_result, valid_loss, valid_result):
+    print(f'Evaluation on train set, train losses {train_loss}\n',
+            'ma: {:.4f}, label_f1: {:.4f}, pos_recall: {:.4f} , neg_recall: {:.4f} \n'.format(
+                train_result.ma, np.mean(train_result.label_f1),
+                np.mean(train_result.label_pos_recall),
+                np.mean(train_result.label_neg_recall)),
+            'Acc: {:.4f}, Prec: {:.4f}, Rec: {:.4f}, F1: {:.4f}'.format(
+                train_result.instance_acc, train_result.instance_prec, train_result.instance_recall,
+                train_result.instance_f1))
+
+    print(f'Evaluation on test set, valid losses {valid_loss}\n',
+            'ma: {:.4f}, label_f1: {:.4f}, pos_recall: {:.4f} , neg_recall: {:.4f} \n'.format(
+                valid_result.ma, np.mean(valid_result.label_f1),
+                np.mean(valid_result.label_pos_recall),
+                np.mean(valid_result.label_neg_recall)),
+            'Acc: {:.4f}, Prec: {:.4f}, Rec: {:.4f}, F1: {:.4f}'.format(
+                valid_result.instance_acc, valid_result.instance_prec, valid_result.instance_recall,
+                valid_result.instance_f1))
+
+    print(f'{toolkits.time_stamp()}')
+    print('-' * 60)

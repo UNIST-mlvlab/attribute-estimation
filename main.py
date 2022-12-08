@@ -38,7 +38,17 @@ def argument_parser():
 
 
 def train_main(setting, verbose=False):
-    exp_name = setting['name']
+    backbone_main(setting, verbose)
+    recommender_main(setting, verbose)
+    fusion_main(setting, verbose)
+
+
+def test_main(setting, verbose=False):
+    pass
+
+
+def backbone_main(setting, verbose=False):
+    exp_name = setting['name'] + '_backbone'
 
     current_time = toolkits.time_stamp()
     model_dir, log_dir = settings.get_dir(setting['exp_dir'], exp_name)
@@ -83,42 +93,10 @@ def train_main(setting, verbose=False):
 
     model_ema = None
 
-    # optimizer
-    optimizer_name = setting['training']['optimizer']['name'].lower()
-    param_groups =[{'params': backbone_model.module.finetune_params(),
-                    'lr': setting['training']['lr_scheduler']['lr_ft'],
-                    'weight_decay': setting['training']['optimizer']['weight_decay']},
-                    {'params': backbone_model.module.fresh_params(),
-                     'lr': setting['training']['lr_scheduler']['lr_new'],
-                     'weight_decay': setting['training']['optimizer']['weight_decay']}]
-    if optimizer_name == 'sgd':
-        optimizer = torch.optim.SGD(param_groups, momentum=setting['training']['optimizer']['momentum'])
-    elif optimizer_name == 'adam':
-        optimizer = torch.optim.Adam(param_groups)
-    elif optimizer_name == 'adamw':
-        optimizer = torch.optim.AdamW(param_groups)
-    else:
-        raise ValueError('Optimizer is not supported yet.')
-
-    # scheduler
+    # optimizer and scheduler
+    optimizer = settings.get_optimizer(setting, backbone_model)
+    lr_scheduler = settings.get_scheduler(setting, optimizer)
     scheduler_name = setting['training']['lr_scheduler']['name'].lower()
-    if scheduler_name == 'plateau':
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1, patience=4)
-    elif scheduler_name == 'multistep':
-        lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=setting['training']['lr_scheduler']['lr_step'], gamma=0.1)
-    elif scheduler_name == 'annealing_cosine':
-        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR_with_Restart(optimizer, 
-            T_max=setting['training']['lr_scheduler']['T_max'], 
-            T_mult=setting['training']['lr_scheduler']['T_mult'],
-            eta_min=setting['training']['lr_scheduler']['eta_min'])
-    elif scheduler_name == 'warmup_cosine':
-        lr_scheduler = torch.optim.lr_scheduler.CosineLRScheduler(optimizer,
-            t_initial=setting['training']['lr_scheduler']['t_initial'],
-            lr_min=1e-5,
-            warmup_lr_init=1e-4,
-            warmup_t=setting['training']['lr_scheduler']['warmup_t'],)
-    else:
-        lr_scheduler = None
 
     # training
     maximum = float(-np.inf)
@@ -129,7 +107,7 @@ def train_main(setting, verbose=False):
     for epoch in range(setting['training']['backbone_epochs']):
         lr = optimizer.param_groups[1]['lr']
 
-        train_loss, train_gt, train_probs, train_imgs, _, train_loss_mtr = batch_engine.batch_trainer(
+        train_loss, train_gt, train_probs, train_imgs = batch_engine.batch_trainer(
             setting,
             epoch=epoch,
             model=backbone_model,
@@ -141,7 +119,7 @@ def train_main(setting, verbose=False):
             scheduler=lr if scheduler_name == 'annealing_cosine' else None
         )
 
-        valid_loss, valid_gt, valid_probs, valid_imgs, _, valid_loss_mtr = batch_engine.valid_trainer(
+        valid_loss, valid_gt, valid_probs, valid_imgs = batch_engine.valid_trainer(
             setting,
             epoch=epoch,
             model=backbone_model,
@@ -161,28 +139,7 @@ def train_main(setting, verbose=False):
         valid_result = toolkits.get_pedestrian_metrics(valid_gt, valid_probs, index=None)
 
         if verbose:
-            print(f'Evaluation on train set, train losses {train_loss}\n',
-                    'ma: {:.4f}, label_f1: {:.4f}, pos_recall: {:.4f} , neg_recall: {:.4f} \n'.format(
-                        train_result.ma, np.mean(train_result.label_f1),
-                        np.mean(train_result.label_pos_recall),
-                        np.mean(train_result.label_neg_recall)),
-                    'Acc: {:.4f}, Prec: {:.4f}, Rec: {:.4f}, F1: {:.4f}'.format(
-                        train_result.instance_acc, train_result.instance_prec, train_result.instance_recall,
-                        train_result.instance_f1))
-
-            print(f'Evaluation on test set, valid losses {valid_loss}\n',
-                    'ma: {:.4f}, label_f1: {:.4f}, pos_recall: {:.4f} , neg_recall: {:.4f} \n'.format(
-                        valid_result.ma, np.mean(valid_result.label_f1),
-                        np.mean(valid_result.label_pos_recall),
-                        np.mean(valid_result.label_neg_recall)),
-                    'Acc: {:.4f}, Prec: {:.4f}, Rec: {:.4f}, F1: {:.4f}'.format(
-                        valid_result.instance_acc, valid_result.instance_prec, valid_result.instance_recall,
-                        valid_result.instance_f1))
-
-            print(f'{toolkits.time_stamp()}')
-            print('-' * 60)
-
-        if verbose:
+            logger.result_printting(train_loss, train_result, valid_loss, valid_result)
             logger.tb_visualizer_pedes(writter, lr, epoch, train_loss, valid_loss, train_result, valid_result)
 
         cur_metric = valid_result.ma
@@ -199,12 +156,17 @@ def train_main(setting, verbose=False):
             'train_imgs': train_imgs, 'valid_imgs': valid_imgs
         }
 
-    with open(result_PATH.replace(':', '.'), 'wb') as f:
+    with open(result_PATH, 'wb') as f:
         pickle.dump(result_list, f)
 
     return maximum, best_epoch
 
-def test_main(setting, verbose=False):
+
+def recommender_main(setting, verbose=False):
+    label_data = np.loadtxt("SWIN_TRAIN_PAR_GT.csv", delimiter=',')
+
+
+def fusion_main(setting, verbose=False):
     pass
 
 

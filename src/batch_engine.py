@@ -101,7 +101,7 @@ def batch_trainer(setting, epoch, model, model_ema, train_loader, criterion, opt
     if verbose:
         print(f'Epoch {epoch}, LR {lr}, Train_Time {time.time() - epoch_time:.2f}s, Loss: {loss_meter.avg:.4f}')
 
-    return train_loss, gt_label, preds_probs, imgname_list, preds_logits, loss_mtr_list
+    return train_loss, gt_label, preds_probs, imgname_list
 
 
 def valid_trainer(model, valid_loader, criterion, loss_w=[1, ], verbose=False):
