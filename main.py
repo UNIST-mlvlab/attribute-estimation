@@ -20,6 +20,11 @@ import src.utils.logger as logger
 import src.utils.settings as settings
 import src.utils.toolkits as toolkits
 
+import os
+import pandas as pd
+from recommenders.models.sar import SAR
+from sklearn import preprocessing
+
 
 def argument_parser():
     parser = argparse.ArgumentParser(description='Attribute Recognition Framework',
@@ -84,13 +89,14 @@ def backbone_main(setting, verbose=False):
     else:
         backbone_model = torch.nn.DataParallel(backbone_model)
 
+    writer = None
     # loss and criteria
     loss_dict = setting['training']['loss']
     criteria = factory.build_loss(loss_dict['name'])(
-        sample_weight=[1,]
+        sample_weight=[1,],
         scale=1,
         size_num=True,
-        tb_writer=writer
+        tb_writer=writer,
     )
 
     model_ema = None
@@ -140,6 +146,11 @@ def backbone_main(setting, verbose=False):
         train_result = toolkits.get_pedestrian_metrics(train_gt, train_probs, index=None)
         valid_result = toolkits.get_pedestrian_metrics(valid_gt, valid_probs, index=None)
 
+        np.savetxt('swin_train_pred.csv', train_probs, delimiter=',')
+        np.savetxt('swin_train_gt.csv', train_gt, delimiter=',')
+        np.savetxt('swin_test_gt.csv', valid_gt, delimiter=',')
+        np.savetxt('swin_test_pred.csv', valid_probs, delimiter=',')
+
         if verbose:
             logger.result_printting(train_loss, train_result, valid_loss, valid_result)
             logger.tb_visualizer_pedes(writter, lr, epoch, train_loss, valid_loss, train_result, valid_result)
@@ -165,8 +176,53 @@ def backbone_main(setting, verbose=False):
 
 
 def recommender_main(setting, verbose=False):
-    label_data = np.loadtxt("SWIN_TRAIN_PAR_GT.csv", delimiter=',')
+    def np_to_pandas_nodelete_itemfirst(user_id, x):
+        np_list = [[0, 0, 0, 0]]
+        timestep = 90000000
+        # x = binarize(x, 0)
 
+        user_id_end = user_id + x.shape[0]
+        k = 0
+        for i in range(user_id, user_id_end):
+            for j in range(x.shape[1]):
+                for j in range(x.shape[1]):
+                    if x[k][j] != 0:
+                        np_list.append([int(i), j, x[k][j], 19981015])
+                        timestep += 1
+            k += 1
+        np_list = np.array(np_list)
+        return np_list[1:], user_id_end
+    label_data = np.loadtxt("swin_train_gt.csv", delimiter=',')
+
+    label_data_numpy, _ = np_to_pandas_nodelete_itemfirst(0, label_data)
+    label_data_pandas = pd.DataFrame(label_data_numpy, columns=["userID", "itemID", "rating", "timestamp"])
+    label_data_pandas['rating'] = label_data_pandas['rating'].astype(np.float32)
+    train = label_data_pandas
+
+    model = SAR(
+        col_user="userID",
+        col_item="itemID",
+        col_rating="rating",
+        col_timestamp="timestamp",
+        similarity_type="jaccard",
+        time_decay_coefficient=30,
+        timedecay_formula=True,
+        normalize=False
+    )
+
+    model.fit(train)
+    top_k = model.recommend_k_items(train, top_k=51, remove_seen=False)
+
+    all_predictions = top_k.sort_values(['userID', 'itemID'],ascending=True).groupby('userID').head(51)
+
+    np_predictions = all_predictions['prediction'].to_numpy()
+    np_predictions = np_predictions.reshape(33268, 51)
+
+    lowest = np.amin(np_predictions)
+    np_predictions += lowest
+
+    np_predictions = preprocessing.minmax_scale(np_predictions)
+    np.savetxt('swin_train_sar_scales.csv', np_predictions, delimiter=',')
 
 def fusion_main(setting, verbose=False):
     exp_name = setting['name'] + '_fusion'
@@ -178,13 +234,12 @@ def fusion_main(setting, verbose=False):
         writter = logger.get_writter(log_dir, exp_name)
 
     Reco_train = np.loadtxt('SWIN_TRAIN_SAR_sclaed.csv', delimiter=',')
-    # Reco_test = np.loadtxt('SWIN_PAR_SAR_TEST.csv', delimiter=',')
 
-    ST_train = np.loadtxt('SWIN_TRAIN_PAR_PRED.csv', delimiter=',')
-    ST_test = np.loadtxt('SWIN_PAR_PRED.csv', delimiter=',')
+    ST_train = np.loadtxt('swin_train_pred.csv', delimiter=',')
+    ST_test = np.loadtxt('swin_test_pred.csv', delimiter=',')
 
-    Y_train = np.loadtxt('SWIN_TRAIN_PAR_GT.csv', delimiter=',')
-    Y_test = np.loadtxt('SWIN_PAR_GT.csv', delimiter=',')
+    Y_train = np.loadtxt('swin_train_gt.csv', delimiter=',')
+    Y_test = np.loadtxt('swin_test_gt.csv', delimiter=',')
 
     train_context = ConcatedFeatures(ST_train, Y_train, Y_train, mode='concat')
     test_context = ConcatedFeatures(ST_test, Y_train, Y_test, mode='concat')
