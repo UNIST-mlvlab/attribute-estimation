@@ -13,8 +13,13 @@ training:
   num_workers: 4
   batch_size: 64
   backbone_epochs: 30
-  loss:
+  fusion:
+    epochs: 500
+    batch_size: 50
+    learning_rate: 0.0001
+  loss: 
     name: bce
+    sample_weight: weight
   optimizer:
     name: adam
     momentum: 0.9

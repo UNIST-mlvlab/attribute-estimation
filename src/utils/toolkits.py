@@ -94,3 +94,5 @@ def get_pedestrian_metrics(gt_label, preds_probs, threshold=0.5, index=None):
     result.error_num, result.fn_num, result.fp_num = false_pos + false_neg, false_neg, false_pos
 
     return result
+
+

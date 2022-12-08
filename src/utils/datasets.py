@@ -52,6 +52,33 @@ class PARDataset(Dataset):
         return self.attribute_name
 
 
+class ConcatedFeatures(Dataset):
+    def compare(self, X_MNet, X_RC):
+        for i in range(X_MNet.shape[0]):
+            for j in range(X_MNet.shape[1]):
+                if np.abs(X_MNet[i][j]-0.5) < np.abs(X_RC[i][j]-0.5):
+                    X_MNet[i][j] = X_RC[i][j]
+        return X_MNet
+
+    def __init__(self, X_MNet, Y_train, Y, mode='MNet'):
+        self.X = None
+        self.Y = None
+        self.X_RC = None
+        if mode == 'concat':
+            self.X = X_MNet
+            self.X_RC = Y_train
+            self.Y = Y
+
+    def __getitem__(self, index):
+        X = self.X[index]
+        X_RC = self.X_RC[index]
+        Y = self.Y[index]
+        return X, X_RC, Y
+
+    def __len__(self):
+        return len(self.X)
+
+
 def get_dataset(settings):
     dataset_name = settings['datasets']['dataset_name']
 

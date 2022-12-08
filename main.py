@@ -1,19 +1,21 @@
 import argparse
-import datetime
 import os
 import pickle
 
 from collections import defaultdict
 
 import numpy as np
+from scipy.spatial.distance import cdist
 import torch
+from torch.utils.data import DataLoader
 
 import src.batch_engine as batch_engine
 
+from src.models.fusion import FusionModel
 import src.models.base_block as base_block
 import src.models.model_factory as factory
 
-from src.utils.datasets import get_dataset
+from src.utils.datasets import get_dataset, ConcatedFeatures
 import src.utils.logger as logger
 import src.utils.settings as settings
 import src.utils.toolkits as toolkits
@@ -167,7 +169,135 @@ def recommender_main(setting, verbose=False):
 
 
 def fusion_main(setting, verbose=False):
-    pass
+    exp_name = setting['name'] + '_fusion'
+
+    _, log_dir = settings.get_dir(setting['exp_dir'], exp_name)
+
+    writter = None
+    if verbose:
+        writter = logger.get_writter(log_dir, exp_name)
+
+    Reco_train = np.loadtxt('SWIN_TRAIN_SAR_sclaed.csv', delimiter=',')
+    # Reco_test = np.loadtxt('SWIN_PAR_SAR_TEST.csv', delimiter=',')
+
+    ST_train = np.loadtxt('SWIN_TRAIN_PAR_PRED.csv', delimiter=',')
+    ST_test = np.loadtxt('SWIN_PAR_PRED.csv', delimiter=',')
+
+    Y_train = np.loadtxt('SWIN_TRAIN_PAR_GT.csv', delimiter=',')
+    Y_test = np.loadtxt('SWIN_PAR_GT.csv', delimiter=',')
+
+    train_context = ConcatedFeatures(ST_train, Y_train, Y_train, mode='concat')
+    test_context = ConcatedFeatures(ST_test, Y_train, Y_test, mode='concat')
+
+    fusion_setting = setting['training']['fusion']
+
+    epochs = fusion_setting['epochs']
+    batch_size = fusion_setting['batch_size']
+    lr = fusion_setting['learning_rate']
+    num_workers = setting['training']['num_workers']
+
+    device = settings.get_device(setting)
+
+    train_dataloader = DataLoader(train_context, 
+        batch_size=batch_size, 
+        shuffle=True, 
+        num_workers=num_workers)
+    test_dataloader = DataLoader(test_context, 
+        batch_size=batch_size, 
+        shuffle=True, 
+        num_workers=num_workers)
+
+    labels = train_context.Y
+    label_ratio = labels.mean(0) if setting['training']['loss']['sample_weight'] else None
+
+    model = FusionModel()
+    criteria = factory.build_loss()(
+        sample_weight=label_ratio,
+        scale=1,
+        size_sum=True,
+        tb_writer=writter
+    )
+    criteria = criteria.to(device)
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
+
+    for epoch in range(epochs):
+        batch_num = 0
+        pred_list = np.zeros((1,51))
+        gt_list = np.zeros((1,51))
+
+        for data, data_rc, label in train_dataloader:
+            data, data_rc, label = data.to(device), data_rc.to(device), label.to(device)
+
+            Reco_pred = []
+
+            for idx in range(len(data)):
+                bin_data = data[idx].unsqueeze(0)
+                bin_data = bin_data.clone().detach().cpu().numpy() > 0.5
+                bin_data = bin_data.astype(int)
+
+                hamming = cdist(bin_data, Y_train, 'hamming')
+                smallest_index = np.argmin(hamming)
+
+                Reco_pred.append(Reco_train[smallest_index].tolist())
+
+            Reco_pred = torch.tensor(Reco_pred).cuda()
+            Reco_pred = torch.sigmoid(Reco_pred)
+            input = torch.cat((Reco_pred, data), dim=1)
+            pred = model(input)
+
+            loss, _ = criteria.forward(pred, label)
+            loss = loss[0]
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            batch_num += 1
+
+            pred = pred.detach().cpu().numpy()
+            pred_list = np.append(pred_list, pred, axis=0)
+            gt_list = np.append(gt_list, label.detach().cpu().numpy(), axis=0)
+
+        train_result = toolkits.get_pedestrian_metrics(gt_list[1:], pred_list[1:], threshold=0.5)
+
+        # validation step
+        pred_list = np.zeros((1,51))
+        gt_list = np.zeros((1,51))
+
+        with torch.no_grad():
+            for data, data_rc, label in test_dataloader:
+                data, data_rc, label = data.to(device), data_rc.to(device), label.to(device)
+
+                Reco_pred = []
+                for i in range(len(data)):
+                    bin_data = data[i].unsqueeze(0)
+                    bin_data = bin_data.clone().detach().cpu().numpy() > 0.5
+                    bin_data = bin_data.astype(int)
+
+                    hamming = cdist(bin_data, Y_train, 'hamming')
+                    smallest_index = np.argmin(hamming)
+
+                    Reco_pred.append(Reco_train[smallest_index].tolist())
+
+                Reco_pred = torch.tensor(Reco_pred).cuda()
+                Reco_pred = torch.sigmoid(Reco_pred)
+                input = torch.cat((Reco_pred, data), dim=1)
+                pred = model(input)
+
+                batch_num += 1
+                val_loss, _ = criteria.forward(pred, label)
+
+                pred = pred.detach().cpu().numpy()
+                pred_list = np.append(pred_list, pred, axis=0)
+                gt_list = np.append(gt_list, label.detach().cpu().numpy(), axis=0)
+
+        valid_result = toolkits.get_pedestrian_metrics(gt_list[1:], pred_list[1:], threshold=0.5)
+        if verbose:
+            logger.result_printting(-1.0, train_result, -1.0, valid_result)
+        
+        scheduler.step(val_loss[0])
 
 
 if __name__ == '__main__':
