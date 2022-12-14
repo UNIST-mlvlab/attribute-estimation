@@ -1,0 +1,41 @@
+name: 'baseline-swin'
+exp_dir: ./results
+
+datasets:
+  data_root: ~/datasets/PAR_datasets/RAPv1
+  dataset_name: RAPv1
+  height: 256
+  width: 192
+
+training:
+  device: 0
+  distributed: False
+  num_workers: 4
+  batch_size: 64
+  backbone_epochs: 30
+  fusion:
+    epochs: 500
+    batch_size: 50
+    learning_rate: 0.0001
+  loss: 
+    name: bce
+    sample_weight: weight
+  optimizer:
+    name: adam
+    momentum: 0.9
+    weight_decay: 5e-4
+  lr_scheduler:
+    name: plateau
+    lr_ft: 0.0001
+    lr_new: 0.0001
+    lr_step: [0,]
+  clip_grad: False
+  
+models:
+  backbone: swin_s
+  classifier: 
+    name: linear
+    bn: False
+    scale: 1
+    pooling: avg
+  

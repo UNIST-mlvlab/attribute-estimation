@@ -2,6 +2,7 @@ name: keti-ar
 channels:
   - pytorch
   - nvidia
+  - conda-forge
   - defaults
 dependencies:
   - _libgcc_mutex=0.1
@@ -25,7 +26,7 @@ dependencies:
   - brotlipy=0.7.0
   - bzip2=1.0.8
   - c-ares=1.18.1
-  - ca-certificates=2022.10.11
+  - ca-certificates=2022.9.24
   - cachetools=4.2.2
   - certifi=2022.9.24
   - cffi=1.15.1
@@ -71,6 +72,7 @@ dependencies:
   - debugpy=1.5.1
   - decorator=5.1.1
   - defusedxml=0.7.1
+  - easydict=1.9
   - entrypoints=0.4
   - executing=0.8.3
   - expat=2.4.9
