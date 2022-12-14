@@ -39,6 +39,43 @@ from models import base_block
 
 torch.autograd.set_detect_anomaly(True)
 
+from tools.function import ratio2weight
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+from models.registry import LOSSES
+from tools.function import ratio2weight
+
+class BCELoss(nn.Module):
+
+    def __init__(self, sample_weight=None, size_sum=True, scale=None, tb_writer=None):
+        super(BCELoss, self).__init__()
+
+        self.sample_weight = sample_weight
+        self.size_sum = size_sum
+        self.hyper = 0.8
+        self.smoothing = None
+
+    def forward(self, logits, targets):
+        logits = logits[0]
+
+        if self.smoothing is not None:
+            targets = (1 - self.smoothing) * targets + self.smoothing * (1 - targets)
+
+        loss_m = F.binary_cross_entropy_with_logits(logits, targets, reduction='none')
+
+        targets_mask = torch.where(targets.detach().cpu() > 0.5, torch.ones(1), torch.zeros(1))
+        if self.sample_weight is not None:
+            sample_weight = ratio2weight(targets_mask, self.sample_weight)
+
+            loss_m = (loss_m * sample_weight.cuda())
+
+        # losses = loss_m.sum(1).mean() if self.size_sum else loss_m.mean()
+        loss = loss_m.sum(1).mean() if self.size_sum else loss_m.sum()
+
+        return [loss], [loss_m]
+
 def main(cfg, args):
     set_seed(605)
     exp_dir = os.path.join('exp_result', cfg.DATASET.NAME)
@@ -136,7 +173,6 @@ def main(cfg, args):
 
     backbone, c_output = build_backbone(cfg.BACKBONE.TYPE, cfg.BACKBONE.MULTISCALE)
 
-
     classifier = build_classifier(cfg.CLASSIFIER.NAME)(
         nattr=train_set.attr_num,
         c_in=c_output,
@@ -172,8 +208,7 @@ def main(cfg, args):
 
     loss_weight = cfg.LOSS.LOSS_WEIGHT
 
-
-    criterion = build_loss(cfg.LOSS.TYPE)(
+    criterion = BCELoss(
         sample_weight=label_ratio, scale=cfg.CLASSIFIER.SCALE, size_sum=cfg.LOSS.SIZESUM, tb_writer=writer)
     criterion = criterion.cuda()
 
@@ -323,6 +358,11 @@ def trainer(cfg, args, epoch, model, model_ema, train_loader, valid_loader, crit
 
             train_result = get_pedestrian_metrics(train_gt, train_probs, index=None, cfg=cfg)
             valid_result = get_pedestrian_metrics(valid_gt, valid_probs, index=None, cfg=cfg)
+
+            np.savetxt('swin_train_pred.csv', train_probs, delimiter=',')
+            np.savetxt('swin_train_gt.csv', train_gt, delimiter=',')
+            np.savetxt('swin_test_gt.csv', valid_gt, delimiter=',')
+            np.savetxt('swin_test_pred.csv', valid_probs, delimiter=',')
 
             if args.local_rank == 0:
                 print(f'Evaluation on train set, train losses {train_loss}\n',

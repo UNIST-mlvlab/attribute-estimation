@@ -250,14 +250,13 @@ class Weighted_BCELoss(object):
 '''dataload'''
 def main():
 
-    Reco_train = np.loadtxt('SWIN_TRAIN_SAR_sclaed.csv', delimiter=',')
-    # Reco_test = np.loadtxt('SWIN_PAR_SAR_TEST.csv', delimiter=',')
+    Reco_train = np.loadtxt('swin_train_sar_scales.csv', delimiter=',')
 
-    ST_train = np.loadtxt('SWIN_TRAIN_PAR_PRED.csv', delimiter=',')
-    ST_test = np.loadtxt('SWIN_PAR_PRED.csv', delimiter=',')
+    ST_train = np.loadtxt('swin_train_pred.csv', delimiter=',')
+    ST_test = np.loadtxt('swin_test_pred.csv', delimiter=',')
 
-    Y_train = np.loadtxt('SWIN_TRAIN_PAR_GT.csv', delimiter=',')
-    Y_test = np.loadtxt('SWIN_PAR_GT.csv', delimiter=',')
+    Y_train = np.loadtxt('swin_train_gt.csv', delimiter=',')
+    Y_test = np.loadtxt('swin_test_gt.csv', delimiter=',')
 
     train_context = concated_feaures(ST_train, Y_train, Y_train, mode='concat')
     test_context = concated_feaures(ST_test, Y_train, Y_test, mode='concat')
@@ -326,7 +325,7 @@ def main():
     optimizer = optim.Adam(model.parameters(), lr=lr)
     scheduler = ReduceLROnPlateau(optimizer, 'min')
 
-    for epoch in range(epochs):
+    for epoch in range(1):
         batch_num = 0
         pred_list = np.zeros((1,51))
         gt_list = np.zeros((1,51))

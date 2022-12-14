@@ -15,7 +15,7 @@ RELOAD:
   NAME: 'backbone'
 
 BACKBONE:
-  TYPE: 'swin_s'
+  TYPE: 'resnet50'
 
 CLASSIFIER:
   NAME: 'linear'

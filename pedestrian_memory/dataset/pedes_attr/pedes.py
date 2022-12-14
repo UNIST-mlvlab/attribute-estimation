@@ -78,7 +78,7 @@ class PedesAttr(data.Dataset):
         imgname, gt_label, imgidx = self.img_id[index], self.label[index], self.img_idx[index]
 
         # imgpath = os.path.join(self.root_path, imgname)
-        imgpath = os.path.join(r'data/RAP/RAP_dataset/RAP_dataset', imgname)
+        imgpath = os.path.join(r'C:\Users\leehy\Downloads\Rethinking_of_PAR-master (1)\Rethinking_of_PAR-master\data\RAP\RAP_dataset\RAP_dataset/', imgname)
 
         img = Image.open(imgpath)
 
